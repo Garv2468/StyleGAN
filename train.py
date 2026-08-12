@@ -1,31 +1,27 @@
-def plot_training_curves(history):
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+"""Adversarial training loop."""
 
-    axes[0].plot(history['d_loss'], label='D loss', alpha=0.7)
-    axes[0].plot(history['g_loss'], label='G loss', alpha=0.7)
-    axes[0].set_xlabel('Training step')
-    axes[0].set_ylabel('Loss')
-    axes[0].set_title('Discriminator / Generator Loss')
-    axes[0].legend()
+import torch
+from tqdm.auto import tqdm
 
-    axes[1].plot(history['fid_epoch'], history['fid'], marker='o', color='tab:red')
-    axes[1].set_xlabel('Epoch')
-    axes[1].set_ylabel('FID (lower = better)')
-    axes[1].set_title('FID over training')
+from .dataset import get_dataloader
+from .Losses import discriminator_loss, generator_loss
+from .Metrics import (
+    InceptionFeatureExtractor,
+    PerceptualDistance,
+    compute_fid,
+    compute_ppl,
+    get_fake_features,
+    get_real_features,
+)
+from .Model import Discriminator, Generator
+from .utils import save_checkpoint, save_sample_images
 
-    axes[2].plot(history['ppl_epoch'], history['ppl'], marker='o', color='tab:blue')
-    axes[2].set_xlabel('Epoch')
-    axes[2].set_ylabel('Perceptual Path Length')
-    axes[2].set_title('PPL over training (lower = more disentangled)')
-
-    plt.tight_layout()
-    plt.show()
 
 def train(
     data_root,
     z_dim=512,
     batch_size=32,
-    num_epochs = 1,
+    num_epochs=1,
     lr_g=2e-4,
     lr_d=2e-4,
     device='cuda' if torch.cuda.is_available() else 'cpu',
@@ -77,7 +73,7 @@ def train(
             x_fake = G(z)
 
             opt_d.zero_grad()
-            d_loss = discriminator_loss(D, x_real, x_fake, gamma=2*epoch)
+            d_loss = discriminator_loss(D, x_real, x_fake, gamma=2 * epoch)
             d_loss.backward()
             opt_d.step()
 

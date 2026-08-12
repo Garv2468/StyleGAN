@@ -1,9 +1,9 @@
+"""Generator, Discriminator, and the building blocks used by both."""
+
+import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import numpy as np
-from torch.utils.data import DataLoader
-from torchvision import datasets, transforms
+
 
 class MapNetwork(nn.Module):
     def __init__(self, z_dim=512, w_dim=512):
@@ -20,6 +20,7 @@ class MapNetwork(nn.Module):
         z = z / torch.norm(z, dim=1, keepdim=True)
         return self.map(z)
 
+
 class LearnedConstant(nn.Module):
     def __init__(self, channels=512):
         super().__init__()
@@ -27,6 +28,7 @@ class LearnedConstant(nn.Module):
 
     def forward(self, batch_size):
         return self.constant.repeat(batch_size, 1, 1, 1)
+
 
 class AdaIN(nn.Module):
     def __init__(self, w_dim, num_channel):
@@ -42,6 +44,7 @@ class AdaIN(nn.Module):
         std = x.std(dim=[2, 3], keepdim=True)
         return y_s * (x - mn) / (std + 1e-8) + y_b
 
+
 class NoiseInj(nn.Module):
     def __init__(self, num_channel):
         super().__init__()
@@ -51,6 +54,7 @@ class NoiseInj(nn.Module):
         batch_size, num_channel, height, width = x.shape
         noise = torch.randn(batch_size, 1, height, width, device=x.device)
         return x + noise * self.weight
+
 
 class FirstBlock(nn.Module):
     def __init__(self, channels=512, w_dim=512):
@@ -70,6 +74,7 @@ class FirstBlock(nn.Module):
         x = self.lrelu(x)
         return x
 
+
 class SynthesisBlock(nn.Module):
     def __init__(self, in_channels, out_channels, w_dim=512):
         super().__init__()
@@ -88,7 +93,9 @@ class SynthesisBlock(nn.Module):
         x = self.lrelu(self.adain2(self.inj2(self.conv2(x)), w))
         return x
 
+
 CHANNELS = [512, 512, 256, 256, 128, 64]  # 4x4, 8x8, 16x16, 32x32, 64x64
+
 
 def mix_styles(w1, w2, num_blocks, crossover=None):
     if crossover is None:
@@ -96,6 +103,7 @@ def mix_styles(w1, w2, num_blocks, crossover=None):
     else:
         p = crossover
     return [w1 if i < p else w2 for i in range(num_blocks)]
+
 
 class Generator(nn.Module):
     def __init__(self, z_dim=512, w_dim=512, channels=CHANNELS):
@@ -132,6 +140,7 @@ class Generator(nn.Module):
         img = torch.tanh(self.to_rgb(x))  # output in [-1, 1]
         return img
 
+
 class Discriminator(nn.Module):
     def __init__(self, channels=CHANNELS):
         super().__init__()
@@ -154,40 +163,3 @@ class Discriminator(nn.Module):
     def forward(self, x):
         x = self.features(x)
         return self.classifier(x)
-
-def discriminator_loss(D, x_real, x_fake, gamma=2):
-    x_real = x_real.clone().requires_grad_(True)
-
-    d_real = D(x_real)
-    d_fake = D(x_fake.detach())
-
-    grad_real = torch.autograd.grad(
-        outputs=d_real.sum(), inputs=x_real, create_graph=True
-    )[0]
-    grad_penalty_real = (grad_real.view(grad_real.size(0), -1).pow(2).sum(1)).mean()
-
-    criterion = nn.BCELoss()
-    loss_fake = criterion(d_fake, torch.zeros_like(d_fake))
-    loss_real = criterion(d_real, torch.ones_like(d_real))
-
-    d_loss = loss_fake + loss_real + gamma * grad_penalty_real / 2
-    #print(f"loss_f ={loss_fake}, loss_real = {loss_real}, R1 = {grad_penalty_real}")
-    return d_loss
-
-
-def generator_loss(D, x_fake):
-    d_fake = D(x_fake)
-    criterion = nn.BCELoss()
-    g_loss = criterion(d_fake, torch.ones_like(d_fake))
-    return g_loss
-
-def get_dataloader(root, image_size=None, batch_size=32):
-    if image_size is None:
-        image_size = 4*(2**(len(CHANNELS) - 1))
-    transform = transforms.Compose([
-        transforms.Resize((image_size, image_size)),
-        transforms.ToTensor(),
-        transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
-    ])
-    dataset = datasets.ImageFolder(root=root, transform=transform)
-    return DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=True)

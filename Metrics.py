@@ -1,3 +1,13 @@
+"""FID and Perceptual Path Length (PPL) for evaluating sample quality."""
+
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from scipy import linalg
+from torchvision import models
+
+
 class PerceptualDistance(nn.Module):
 
     def __init__(self, device='cpu'):
@@ -87,6 +97,7 @@ def compute_ppl(G, perceptual_metric, z_dim=512, num_samples=100, epsilon=1e-4, 
     G.train()
     return total_distance / num_samples
 
+
 class InceptionFeatureExtractor(nn.Module):
     def __init__(self, device='cuda'):
         super().__init__()
@@ -138,6 +149,7 @@ def get_fake_features(G, extractor, z_dim, num_samples, device, batch_size=32):
     G.train()
     return np.concatenate(feats, axis=0)
 
+
 def compute_fid(real_features, fake_features, eps=1e-6):
 
     mu_r, mu_f = real_features.mean(axis=0), fake_features.mean(axis=0)
@@ -155,53 +167,3 @@ def compute_fid(real_features, fake_features, eps=1e-6):
 
     fid = diff @ diff + np.trace(sigma_r + sigma_f - 2 * covmean)
     return float(fid)
-
-def save_sample_images(G, z_dim, epoch, device, num_images=16):
-    G.eval()
-    with torch.no_grad():
-        z = torch.randn(num_images, z_dim, device=device)
-        fake_images = G(z)
-        fake_images = (fake_images + 1) / 2
-    G.train()
-
-    grid = vutils.make_grid(fake_images.cpu(), nrow=4, padding=2)
-
-    plt.figure(figsize=(6, 6))
-    plt.axis("off")
-    plt.title(f"Generated samples - epoch {epoch+1}")
-    plt.imshow(grid.permute(1, 2, 0))
-    plt.show()
-    plt.close()
-
-def save_checkpoint(G, D, opt_g, opt_d, epoch, history, path="checkpoint.pth"):
-    torch.save({
-        'epoch': epoch,
-        'G_state_dict': G.state_dict(),
-        'D_state_dict': D.state_dict(),
-        'opt_g_state_dict': opt_g.state_dict(),
-        'opt_d_state_dict': opt_d.state_dict(),
-        'history': history,
-    }, path)
-    print(f"Checkpoint saved to {path} (epoch {epoch+1})")
-
-
-def load_checkpoint(path, z_dim=512, lr_g=2e-4, lr_d=2e-4, device='cuda'):
-    checkpoint = torch.load(path, map_location=device)
-
-    G = Generator(z_dim=z_dim).to(device)
-    D = Discriminator().to(device)
-    G.load_state_dict(checkpoint['G_state_dict'])
-    D.load_state_dict(checkpoint['D_state_dict'])
-
-    opt_g = torch.optim.Adam(G.parameters(), lr=lr_g, betas=(0.0, 0.99))
-    opt_d = torch.optim.Adam(D.parameters(), lr=lr_d, betas=(0.0, 0.99))
-    opt_g.load_state_dict(checkpoint['opt_g_state_dict'])
-    opt_d.load_state_dict(checkpoint['opt_d_state_dict'])
-
-    history = checkpoint.get(
-        'history',
-        {'d_loss': [], 'g_loss': [], 'fid': [], 'fid_epoch': [], 'ppl': [], 'ppl_epoch': []}
-    )
-    start_epoch = checkpoint['epoch'] + 1
-    print(f"Loaded checkpoint from {path}, resuming at epoch {start_epoch}")
-    return G, D, opt_g, opt_d, history, start_epoch

@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Environments
+.venv/
+venv/
+env/
+
+# Checkpoints & artifacts
+checkpoints/
+*.pth
+*.pt
+
+# Notebooks
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
