@@ -53,11 +53,6 @@ G, D, opt_g, opt_d, history = train(
     checkpoint_path=CHECKPOINT_PATH,
 )
 ```
-
-## Known issues
-
-- `train()` calls `get_dataloader(..., image_size=64)`, but `CHANNELS` in `src/model.py` has 6 stages, which makes the Generator/Discriminator's native resolution 128x128. Feeding 64x64 real images into the Discriminator will raise a shape-mismatch error. Fix by either dropping one entry from `CHANNELS` (e.g. `[512, 512, 256, 256, 128]` for 64x64) or removing `image_size=64` in `src/train.py` so `get_dataloader` defaults to 128x128.
-
 ## Notes
 
-Built as a learning exercise implementing the StyleGAN paper's core components from scratch — not optimized for large-scale or high-resolution training.
+Built as a learning exercise implementing the StyleGAN paper's core components from scratch, not optimized for large-scale or high-resolution training.
